@@ -33,11 +33,3 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: |
           python scrape_and_email.py
-      
-      - name: Upload CSV files as artifacts (optional)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: market-data-csv
-          path: output/*.csv
-          retention-days: 7
