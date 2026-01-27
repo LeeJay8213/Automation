@@ -1,0 +1,43 @@
+name: Daily CCFGroup Scraping
+
+on:
+  schedule:
+    # 매일 오전 1시 (UTC) 실행 = 한국시간 오전 10시
+    - cron: '0 1 * * *'
+  # 수동 실행 가능
+  workflow_dispatch:
+
+jobs:
+  scrape-and-email:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 pandas lxml html5lib openpyxl
+      
+      - name: Run scraping script
+        env:
+          CCF_USERNAME: ${{ secrets.CCF_USERNAME }}
+          CCF_PASSWORD: ${{ secrets.CCF_PASSWORD }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: |
+          python scrape_and_email.py
+      
+      - name: Upload CSV files as artifacts (optional)
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: market-data-csv
+          path: output/*.csv
+          retention-days: 7
