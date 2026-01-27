@@ -8,10 +8,7 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
 import os
-from pathlib import Path
 
 warnings.filterwarnings('ignore')
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -186,45 +183,11 @@ print("Styrene daily tables:", len(df_styrene_daily))
 print("Styrene weekly tables:", len(df_styrene_weekly))
 
 # =========================================================
-# 8. CSV 파일 저장
+# 8. 이메일 전송 (DataFrame을 HTML 테이블로)
 # =========================================================
-output_dir = Path("output")
-output_dir.mkdir(exist_ok=True)
-
-csv_files = []
-
-# Benzene Daily 저장
-if df_benzene_daily:
-    for idx, df in enumerate(df_benzene_daily):
-        filename = output_dir / f"benzene_daily_table_{idx+1}.csv"
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        csv_files.append(filename)
-        print(f"✅ Saved: {filename}")
-
-# Styrene Daily 저장
-if df_styrene_daily:
-    for idx, df in enumerate(df_styrene_daily):
-        filename = output_dir / f"styrene_daily_table_{idx+1}.csv"
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        csv_files.append(filename)
-        print(f"✅ Saved: {filename}")
-
-# Styrene Weekly 저장
-if df_styrene_weekly:
-    for idx, df in enumerate(df_styrene_weekly):
-        filename = output_dir / f"styrene_weekly_table_{idx+1}.csv"
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        csv_files.append(filename)
-        print(f"✅ Saved: {filename}")
-
-print(f"\n총 {len(csv_files)}개 CSV 파일 생성 완료")
-
-# =========================================================
-# 9. 이메일 전송 (Gmail SMTP)
-# =========================================================
-def send_email_with_attachments(csv_files):
+def send_email_with_dataframes(df_benzene_daily, df_styrene_daily, df_styrene_weekly):
     """
-    Gmail SMTP를 사용하여 CSV 파일들을 첨부하여 이메일 전송
+    Gmail SMTP를 사용하여 DataFrame들을 HTML 테이블로 변환하여 이메일 본문에 포함
     """
     # 환경변수에서 이메일 설정 가져오기
     smtp_server = "smtp.gmail.com"
@@ -239,37 +202,66 @@ def send_email_with_attachments(csv_files):
         return
 
     # 이메일 메시지 생성
-    msg = MIMEMultipart()
+    msg = MIMEMultipart('alternative')
     msg['From'] = sender_email
     msg['To'] = recipient_email
     msg['Subject'] = f'CCFGroup Market Data - {datetime.now().strftime("%Y-%m-%d")}'
 
-    # 이메일 본문
-    body = f"""
-안녕하세요,
+    # HTML 본문 생성
+    html_body = f"""
+    <html>
+      <head>
+        <style>
+          body {{ font-family: Arial, sans-serif; margin: 20px; }}
+          h2 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }}
+          h3 {{ color: #34495e; margin-top: 30px; }}
+          table {{ border-collapse: collapse; width: 100%; margin-bottom: 30px; }}
+          th {{ background-color: #3498db; color: white; padding: 10px; text-align: left; }}
+          td {{ border: 1px solid #ddd; padding: 8px; }}
+          tr:nth-child(even) {{ background-color: #f2f2f2; }}
+          .info {{ color: #7f8c8d; font-size: 12px; margin-top: 40px; }}
+        </style>
+      </head>
+      <body>
+        <h2>CCFGroup Market Data Report</h2>
+        <p><strong>날짜:</strong> {datetime.now().strftime("%Y년 %m월 %d일")}</p>
+    """
 
-{datetime.now().strftime("%Y년 %m월 %d일")} CCFGroup 시장 데이터를 첨부합니다.
+    # Benzene Daily 테이블 추가
+    if df_benzene_daily:
+        html_body += "<h3>📊 Benzene Market Daily</h3>"
+        for idx, df in enumerate(df_benzene_daily):
+            html_body += f"<h4>Table {idx+1}</h4>"
+            html_body += df.to_html(index=False, border=0, classes='dataframe')
+    else:
+        html_body += "<h3>📊 Benzene Market Daily</h3><p>데이터 없음</p>"
 
-첨부 파일:
-"""
-    for csv_file in csv_files:
-        body += f"- {csv_file.name}\n"
+    # Styrene Daily 테이블 추가
+    if df_styrene_daily:
+        html_body += "<h3>📊 Styrene Monomer Market Daily</h3>"
+        for idx, df in enumerate(df_styrene_daily):
+            html_body += f"<h4>Table {idx+1}</h4>"
+            html_body += df.to_html(index=False, border=0, classes='dataframe')
+    else:
+        html_body += "<h3>📊 Styrene Monomer Market Daily</h3><p>데이터 없음</p>"
 
-    body += "\n자동 생성된 이메일입니다."
+    # Styrene Weekly 테이블 추가
+    if df_styrene_weekly:
+        html_body += "<h3>📊 Styrene Monomer Market Weekly</h3>"
+        for idx, df in enumerate(df_styrene_weekly):
+            html_body += f"<h4>Table {idx+1}</h4>"
+            html_body += df.to_html(index=False, border=0, classes='dataframe')
+    else:
+        html_body += "<h3>📊 Styrene Monomer Market Weekly</h3><p>데이터 없음</p>"
 
-    msg.attach(MIMEText(body, 'plain', 'utf-8'))
+    html_body += """
+        <p class="info">이 이메일은 자동으로 생성되었습니다.</p>
+      </body>
+    </html>
+    """
 
-    # CSV 파일 첨부
-    for csv_file in csv_files:
-        with open(csv_file, 'rb') as f:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(f.read())
-            encoders.encode_base64(part)
-            part.add_header(
-                'Content-Disposition',
-                f'attachment; filename= {csv_file.name}'
-            )
-            msg.attach(part)
+    # HTML 본문 첨부
+    msg.attach(MIMEText(html_body, 'html', 'utf-8'))
 
     # SMTP 서버 연결 및 이메일 전송
     try:
@@ -285,7 +277,4 @@ def send_email_with_attachments(csv_files):
         raise
 
 # 이메일 전송
-if csv_files:
-    send_email_with_attachments(csv_files)
-else:
-    print("⚠️  전송할 CSV 파일이 없습니다.")
+send_email_with_dataframes(df_benzene_daily, df_styrene_daily, df_styrene_weekly)
