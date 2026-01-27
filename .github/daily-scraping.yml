@@ -36,7 +36,7 @@ jobs:
       
       - name: Upload CSV files as artifacts (optional)
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: market-data-csv
           path: output/*.csv
