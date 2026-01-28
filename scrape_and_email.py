@@ -167,7 +167,9 @@ def fetch_tables_as_df(session, url, headers):
     resp.raise_for_status()
 
     html = resp.text
-    dfs = pd.read_html(html)
+    # StringIO를 사용하여 HTML 문자열을 pandas에 전달
+    from io import StringIO
+    dfs = pd.read_html(StringIO(html))
 
     return dfs
 
